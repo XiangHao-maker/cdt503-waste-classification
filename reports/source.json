@@ -1,0 +1,16 @@
+{
+  "repository": "https://github.com/garythung/trashnet",
+  "revision": "6fa2b878c6c1b4304b91109070ce0edf9279bb31",
+  "download_url": "https://raw.githubusercontent.com/garythung/trashnet/6fa2b878c6c1b4304b91109070ce0edf9279bb31/data/dataset-resized.zip",
+  "archive_sha256": "0bf472790f8b20e5c950d5b5012a9d38af0d3392efd65f8ce171334fc16b07c2",
+  "counts": {
+    "cardboard": 403,
+    "glass": 501,
+    "metal": 410,
+    "paper": 594,
+    "plastic": 482,
+    "trash": 137
+  },
+  "citation": "Gary Thung and Mindy Yang, TrashNet (2016).",
+  "license_note": "Repository includes MIT LICENSE; preserve author attribution and source license. See original source for dataset terms."
+}

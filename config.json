@@ -1,0 +1,207 @@
+{
+  "title": "XIANG Hao · 垃圾分类助手",
+  "classes": [
+    "cardboard",
+    "glass",
+    "metal",
+    "paper",
+    "plastic",
+    "trash"
+  ],
+  "labels": [
+    "纸板",
+    "玻璃",
+    "金属",
+    "纸张",
+    "塑料",
+    "其他垃圾"
+  ],
+  "size": 224,
+  "model": "models/trashnet.onnx",
+  "confidence_threshold": 0.65,
+  "margin_threshold": 0.12,
+  "samples": [
+    {
+      "file": "cardboard.jpg",
+      "label": "cardboard",
+      "zh": "纸板",
+      "source_image": "cardboard/cardboard103.jpg",
+      "source_split": "test",
+      "expected_probabilities": [
+        0.9982609152793884,
+        0.0001415156584698707,
+        8.445081039099023e-05,
+        0.0011901191901415586,
+        2.695938019314781e-05,
+        0.00029590129270218313
+      ]
+    },
+    {
+      "file": "glass.jpg",
+      "label": "glass",
+      "zh": "玻璃",
+      "source_image": "glass/glass10.jpg",
+      "source_split": "test",
+      "expected_probabilities": [
+        0.0006080751190893352,
+        0.9908291101455688,
+        0.001539987395517528,
+        8.428646833635867e-05,
+        0.005481599830091,
+        0.0014568896731361747
+      ]
+    },
+    {
+      "file": "metal.jpg",
+      "label": "metal",
+      "zh": "金属",
+      "source_image": "metal/metal103.jpg",
+      "source_split": "test",
+      "expected_probabilities": [
+        0.0014816602924838662,
+        0.0011988013284280896,
+        0.8055486083030701,
+        0.009956326335668564,
+        0.16660884022712708,
+        0.015205652453005314
+      ]
+    },
+    {
+      "file": "paper.jpg",
+      "label": "paper",
+      "zh": "纸张",
+      "source_image": "paper/paper11.jpg",
+      "source_split": "test",
+      "expected_probabilities": [
+        0.00907368678599596,
+        0.0025050756521523,
+        6.206885882420465e-05,
+        0.9646678566932678,
+        0.004388342145830393,
+        0.019303007051348686
+      ]
+    },
+    {
+      "file": "plastic.jpg",
+      "label": "plastic",
+      "zh": "塑料",
+      "source_image": "plastic/plastic104.jpg",
+      "source_split": "test",
+      "expected_probabilities": [
+        8.151991642080247e-05,
+        0.010620346292853355,
+        0.0008718878380022943,
+        0.00013154509360902011,
+        0.9876807928085327,
+        0.0006139329052530229
+      ]
+    },
+    {
+      "file": "trash.jpg",
+      "label": "trash",
+      "zh": "其他垃圾",
+      "source_image": "trash/trash10.jpg",
+      "source_split": "test",
+      "expected_probabilities": [
+        0.007543143350630999,
+        0.01888018287718296,
+        0.1565932333469391,
+        0.007119582965970039,
+        0.009194386191666126,
+        0.8006694316864014
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "file": "failure-0.jpg",
+      "source_image": "cardboard/cardboard153.jpg",
+      "true": "cardboard",
+      "predicted": "trash",
+      "confidence": 0.8836970329284668
+    },
+    {
+      "file": "failure-1.jpg",
+      "source_image": "cardboard/cardboard254.jpg",
+      "true": "cardboard",
+      "predicted": "paper",
+      "confidence": 0.9692858457565308
+    },
+    {
+      "file": "failure-2.jpg",
+      "source_image": "cardboard/cardboard366.jpg",
+      "true": "cardboard",
+      "predicted": "paper",
+      "confidence": 0.9048139452934265
+    },
+    {
+      "file": "failure-3.jpg",
+      "source_image": "cardboard/cardboard42.jpg",
+      "true": "cardboard",
+      "predicted": "paper",
+      "confidence": 0.5954020619392395
+    },
+    {
+      "file": "failure-4.jpg",
+      "source_image": "glass/glass304.jpg",
+      "true": "glass",
+      "predicted": "trash",
+      "confidence": 0.7627753615379333
+    },
+    {
+      "file": "failure-5.jpg",
+      "source_image": "glass/glass307.jpg",
+      "true": "glass",
+      "predicted": "metal",
+      "confidence": 0.9008063673973083
+    },
+    {
+      "file": "failure-6.jpg",
+      "source_image": "glass/glass350.jpg",
+      "true": "glass",
+      "predicted": "plastic",
+      "confidence": 0.981493353843689
+    },
+    {
+      "file": "failure-7.jpg",
+      "source_image": "glass/glass379.jpg",
+      "true": "glass",
+      "predicted": "metal",
+      "confidence": 0.40478289127349854
+    },
+    {
+      "file": "failure-8.jpg",
+      "source_image": "glass/glass380.jpg",
+      "true": "glass",
+      "predicted": "trash",
+      "confidence": 0.47223469614982605
+    },
+    {
+      "file": "failure-9.jpg",
+      "source_image": "glass/glass495.jpg",
+      "true": "glass",
+      "predicted": "plastic",
+      "confidence": 0.6122068166732788
+    },
+    {
+      "file": "failure-10.jpg",
+      "source_image": "glass/glass76.jpg",
+      "true": "glass",
+      "predicted": "metal",
+      "confidence": 0.5584073662757874
+    },
+    {
+      "file": "failure-11.jpg",
+      "source_image": "metal/metal154.jpg",
+      "true": "metal",
+      "predicted": "glass",
+      "confidence": 0.6030381321907043
+    }
+  ],
+  "metrics": {
+    "accuracy": 0.8918205804749341,
+    "macro_f1": 0.8723613366065321,
+    "test_count": 379
+  },
+  "model_sha256": "7497c93f25078de26b1b690c78b401ccdc3d2c47c74fca6aa8ebce212ff2ca7f"
+}
