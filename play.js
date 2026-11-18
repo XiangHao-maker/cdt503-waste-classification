@@ -135,7 +135,7 @@
   if(!el('claw-game').hidden)drawSorter(time);
   requestAnimationFrame(draw);
  }
-  const shell=el('machine-shell');let dragging=null,shakePulse=null,motionHandler=null,motionTimer=null,motionSeen=false,baseline=null;
+  const shell=el('machine-shell');let dragging=null,shakePulse=null;
  function stopDrag(){dragging=null;shell.style.transform='';shell.classList.remove('shaking');}
  for(const surface of [gc,el('shake-handle')]){
   surface.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();surface.setPointerCapture(e.pointerId);dragging={id:e.pointerId,x:e.clientX,y:e.clientY};shell.classList.add('shaking');gc.focus({preventScroll:true});});
@@ -144,26 +144,8 @@
  }
  function shakeMachine(){if(el('claw-game').hidden)return;clearInterval(shakePulse);let n=0;physics.shake(18,-10);shakePulse=setInterval(()=>{if(el('claw-game').hidden||document.hidden||++n>6){clearInterval(shakePulse);stopDrag();return;}const s=n%2?1:-1;physics.shake(s*16,-6);shell.style.transform=`translate(${s*6}px,0) rotate(${s*.6}deg)`;},130);}
  el('shake-machine').onclick=shakeMachine;el('shake-handle').addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();shakeMachine();}});
- function disableMotion(note){if(motionHandler)window.removeEventListener('devicemotion',motionHandler);motionHandler=null;clearTimeout(motionTimer);motionSeen=false;baseline=null;el('motion-enable').textContent='启用设备晃动感应';if(note)el('motion-status').textContent=note;}
- el('motion-enable').onclick=async()=>{
-  if(motionHandler){disableMotion('设备感应已关闭，仍可拖动机器晃动。');return;}
-  if(!window.isSecureContext||!window.DeviceMotionEvent){el('motion-status').textContent='当前浏览器不支持设备感应，请用鼠标拖动或“摇一摇”。';return;}
-  el('motion-enable').disabled=true;
-  try{if(typeof DeviceMotionEvent.requestPermission==='function'&&await DeviceMotionEvent.requestPermission()!=='granted'){el('motion-status').textContent='未获得运动感应权限，仍可用鼠标或手指拖动机器。';return;}}
-  catch(e){el('motion-status').textContent='无法启用设备感应，请用鼠标拖动机器。';return;}
-  finally{el('motion-enable').disabled=false;}
-  motionSeen=false;baseline=null;
-  motionHandler=e=>{
-   if(document.hidden||el('claw-game').hidden)return;
-   let a=e.acceleration,ax=a?.x,ay=a?.y;
-   if(!Number.isFinite(ax)||!Number.isFinite(ay)){a=e.accelerationIncludingGravity;if(!Number.isFinite(a?.x)||!Number.isFinite(a?.y))return;if(!baseline)baseline={x:a.x,y:a.y};baseline.x=baseline.x*.96+a.x*.04;baseline.y=baseline.y*.96+a.y*.04;ax=a.x-baseline.x;ay=a.y-baseline.y;}
-   if(!motionSeen){motionSeen=true;clearTimeout(motionTimer);el('motion-status').textContent='设备晃动感应已连接，可关闭后改用拖动。';}
-   const angle=(screen.orientation?.angle||0)*Math.PI/180,x=ax*Math.cos(angle)-ay*Math.sin(angle),y=ax*Math.sin(angle)+ay*Math.cos(angle);if(Math.hypot(x,y)>.25)physics.shake(-x*.7,y*.7);
-  };
-  window.addEventListener('devicemotion',motionHandler);el('motion-enable').textContent='关闭设备晃动感应';el('motion-status').textContent='正在等待设备运动数据…';motionTimer=setTimeout(()=>{if(!motionSeen)disableMotion('没有收到运动传感器数据。这台设备请使用拖动或“摇一摇”。');},6000);
- };
  function pauseShaking(){stopDrag();clearInterval(shakePulse);physics.shock={x:0,y:0};}
- window.addEventListener('blur',pauseShaking);document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseShaking();});window.addEventListener('pagehide',()=>{pauseShaking();disableMotion();});
+ window.addEventListener('blur',pauseShaking);document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseShaking();});window.addEventListener('pagehide',pauseShaking);
 
 
  const binNames=['纸板','玻璃','金属','纸张','塑料','其他','待确认'];
