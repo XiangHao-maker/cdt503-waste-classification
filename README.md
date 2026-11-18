@@ -22,9 +22,11 @@ This repository contains the deployable website. Training code, raw data, course
 
 ## Live camera and RE:CATCH (2026-11-18)
 
+The machine and material bins now render in one continuous 800×730 canvas. Catch controls and Shake are in the top toolbar; window/device options are under Motion settings. The extra drag handle is removed. At the outlet, the held cutout crosses into the chute at the same world position, rotation and size, then follows an eased vertical/horizontal/drop path with gradual scaling. Sorting never scrolls the page. On desktop the full stage fits the available viewport height; narrow screens can pan the stage horizontally.
+
 Physics update: locally bundled Matter.js 0.20.0 simulates the cutouts with gravity, friction, rebound, rotation, sleeping bodies, and fixed 60 Hz integration. Collision hulls approximate the opaque cutout silhouette with convex polygons; concave holes are not modeled. Drag the machine handle or canvas, or use **Shake machine**. Grabbing temporarily makes a body kinematic/non-colliding; the body is removed as it passes through the sorting outlet. Restart and Clear reset the physics world.
 
-Three inputs are available: drag the machine handle/canvas, move the actual browser window (enabled by default), or opt into device-motion sensing. Mouse/touch and the Shake machine button remain available without sensor permission. No native helper or driver is installed.
+Three inputs are available: drag the machine canvas, move the actual browser window (enabled by default), or opt into device-motion sensing. Mouse/touch and the Shake machine button remain available without sensor permission. No native helper or driver is installed.
 
 Window tracking samples screenX/screenY every 50 ms and applies opposite acceleration and a braking impulse. It ignores maximize/restore/resize, large monitor/snap jumps and inactive/hidden game intervals. Use an unmaximized standalone browser window; embedded panels or privacy restrictions may expose fixed coordinates. A position change must actually be observed before the status says movement was detected. Native window dragging was not available in the automation surface; the coordinate-to-physics integration was tested with simulated browser coordinates.
 
