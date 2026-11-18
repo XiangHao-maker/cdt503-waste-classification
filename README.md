@@ -22,6 +22,10 @@ This repository contains the deployable website. Training code, raw data, course
 
 ## Live camera and RE:CATCH (2026-11-18)
 
+Current-photo safeguard: until extraction finishes, whole-image classification is disabled. When **more than two** foreground candidates are found in that single photo, the right panel automatically displays individual predictions and suppresses the whole-image result, confidence bars and result export. A per-photo revision discards older scene counts when a newer photo arrives. Extraction failure keeps classification blocked until retry. Collection size does not determine this safeguard.
+
+After a catch, the cutout drops through the outlet, travels along the sorting chute, and falls into one of the six predicted-material bins with a swinging lid, particles and a per-bin counter. Below-threshold or ambiguous predictions route to a seventh **Needs confirmation** area. These are material-learning game bins, not municipal disposal instructions. Clearing/restarting cancels the active flight and resets bin counts.
+
 - Camera preview runs serial local inference with a minimum 650 ms interval and no frame backlog. Still-image extraction takes priority; results from stopped streams are discarded. Camera stops when the page is hidden, after capture, or on explicit close.
 - Upload/drop up to 12 JPG/PNG/WebP/BMP photos (20 MB each). Each photo is automatically segmented; review and confirm the extracted transparent cutouts. Exact repeated cutout fingerprints are skipped. The session holds up to 24 candidate/confirmed items and is not persisted on reload.
 - Drag a rectangle over the preview to re-segment a missed or touching object. Remove the original merged candidate before confirming separate selections.

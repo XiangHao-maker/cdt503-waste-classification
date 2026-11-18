@@ -37,10 +37,12 @@
   el('collection-count').textContent=`${collection.length} 件已确认`;el('confirm-all').disabled=!candidates.length;
   el('open-game').disabled=collection.length<2||game.phase!=='idle';el('open-game').textContent=collection.length<2?'至少收集两件后开启抓娃娃机':`把 ${collection.length} 件物品放入抓娃娃机`;
  }
- async function extract(source,manual=false){
+ async function extract(source,manual=false,revision=null){
+  if(revision!==null)setSceneAnalysis(revision,"pending");
   const ticket=epoch;pending++;status('正在提取轮廓并逐件识别…首次需要加载抠图模型，请稍候。');
   try{
-   const result=await rpc(source);if(ticket!==epoch){result.items.forEach(i=>i.sprite.close());return;}
+   const result=await rpc(source);if(revision!==null)setSceneAnalysis(revision,"ready",result.items);
+   if(ticket!==epoch){result.items.forEach(i=>i.sprite.close());return;}
    let added=0;
    for(const item of result.items){
     const probe=document.createElement('canvas');probe.width=32;probe.height=32;const pc=probe.getContext('2d');pc.drawImage(item.sprite,0,0,32,32);const pixels=pc.getImageData(0,0,32,32).data;let hash=2166136261;for(const value of pixels)hash=Math.imul(hash^value,16777619);item.hash=hash;
@@ -49,9 +51,9 @@
    if(!result.items.length)status(manual?'框内未提取到清楚的主体，请重新框选或换背景拍摄。':'没有提取到清楚的主体，可框选一件物品重试，或换成简单背景。');
    else status(`本次提取 ${result.items.length} 件，新增 ${added} 件候选（重复图片跳过，最多保留24件）。请检查后确认加入；粘连物品可分别框选。`);
    render();
-  }catch(e){status('提取失败：'+e.message);}finally{pending--;}
+  }catch(e){if(revision!==null)setSceneAnalysis(revision,'error');status('提取失败：'+e.message);}finally{pending--;}
  }
- window.addEventListener('waste-image',e=>{current=copy(e.detail.canvas);el('extract-now').disabled=false;el('select-box').disabled=false;extract(copy(current));});
+ window.addEventListener('waste-image',e=>{current=copy(e.detail.canvas);el('extract-now').disabled=false;el('select-box').disabled=false;extract(copy(current),false,e.detail.revision);});
  window.wasteFiles=async files=>{
   const list=files.filter(f=>f.size<=20*1024*1024&&(/\.(jpe?g|png|webp|bmp)$/i.test(f.name)||/^image\/(jpeg|png|webp|bmp)$/.test(f.type))).slice(0,12);
   if(!list.length){message('请上传 JPG、PNG、WebP 或 BMP，每张不超过20 MB。');return;}
@@ -59,7 +61,7 @@
   for(const f of list){const url=URL.createObjectURL(f);try{const im=new Image();im.src=url;await im.decode();putImage(im,f.name);}catch(e){status('无法读取：'+f.name);}finally{URL.revokeObjectURL(url);}}
   el('file-input').value='';
  };
- el('extract-now').onclick=()=>{if(current)extract(copy(current));};
+ el('extract-now').onclick=()=>{if(current)extract(copy(current),false,state.imageRevision);};
  function endSelection(){selecting=false;boxStart=null;el('select-box').setAttribute('aria-pressed','false');el('box-tip').hidden=true;el('cancel-box').hidden=true;el('preview').classList.remove('selecting');}
  el('select-box').onclick=()=>{selecting=true;el('select-box').setAttribute('aria-pressed','true');el('box-tip').hidden=false;el('cancel-box').hidden=false;el('preview').classList.add('selecting');el('preview').scrollIntoView({block:'center',behavior:'instant'});};
  el('cancel-box').onclick=endSelection;
@@ -74,7 +76,7 @@
  preview.addEventListener('pointercancel',()=>{endSelection();if(current)preview.getContext('2d').drawImage(current,0,0,preview.width,preview.height);});
  el('clear').addEventListener('click',()=>{current=null;endSelection();el('select-box').disabled=true;el('extract-now').disabled=true;});
  el('confirm-all').onclick=()=>{collection.push(...candidates.splice(0));render();};
- el('clear-collection').onclick=()=>{epoch++;candidates.forEach(i=>i.sprite.close());candidates.length=0;collection.length=0;game.items=[];game.prizes=[];game.phase='idle';el('claw-game').hidden=true;el('prizes').replaceChildren();status('收集区已清空。');render();};
+ el('clear-collection').onclick=()=>{epoch++;candidates.forEach(i=>i.sprite.close());candidates.length=0;collection.length=0;game.items=[];game.prizes=[];game.phase='idle';sorter.flight=null;sorter.counts.fill(0);el('claw-game').hidden=true;el('prizes').replaceChildren();status('收集区已清空。');render();};
  // Serial inference: never build a queue of camera frames. Still photos take priority.
  async function live(){
   const video=el('video'),overlay=el('live-overlay');
@@ -99,7 +101,7 @@
  // Deterministic arcade interaction with gravity, stacking, and positional catches.
  const game={items:[],prizes:[],phase:'idle',x:400,y:85,held:null,start:0,axis:0,last:0};
  const gc=el('game-canvas'),ctx=gc.getContext('2d');
- function startGame(){if(collection.length<2)return;game.items=collection.map((item,i)=>({...item,x:100+(i%7)*94,y:170-Math.floor(i/7)*85,vy:0,w:Math.min(85,85*item.sprite.width/item.sprite.height),h:Math.min(85,85*item.sprite.height/item.sprite.width),angle:(i%3-1)*.14}));game.prizes=[];game.phase='idle';game.held=null;game.x=400;game.y=85;el('claw-game').hidden=false;el('prizes').replaceChildren();el('game-score').textContent='已抓到 0 件';el('game-message').textContent='对准物品，再按抓取。';el('grab').disabled=false;gc.scrollIntoView({block:'center'});render();}
+ function startGame(){if(collection.length<2)return;game.items=collection.map((item,i)=>({...item,x:100+(i%7)*94,y:170-Math.floor(i/7)*85,vy:0,w:Math.min(85,85*item.sprite.width/item.sprite.height),h:Math.min(85,85*item.sprite.height/item.sprite.width),angle:(i%3-1)*.14}));game.prizes=[];sorter.flight=null;sorter.counts.fill(0);sorter.flash=null;el('sort-status').textContent='抓到物品后，会沿滑道进入对应材质桶。';game.phase='idle';game.held=null;game.x=400;game.y=85;el('claw-game').hidden=false;el('prizes').replaceChildren();el('game-score').textContent='已抓到 0 件';el('game-message').textContent='对准物品，再按抓取。';el('grab').disabled=false;gc.scrollIntoView({block:'center'});render();}
  el('open-game').onclick=startGame;el('restart-game').onclick=()=>{if(game.phase==='idle')startGame();};
  function grab(){if(game.phase!=='idle'||!game.items.length)return;game.phase='down';game.start=performance.now();game.held=null;el('grab').disabled=true;el('restart-game').disabled=true;el('game-message').textContent='爪子下降中…';render();}
  el('grab').onclick=grab;
@@ -120,20 +122,61 @@
    else if(game.phase==='return'){game.x=Math.max(65,game.x-300*dt);if(game.x===65){game.phase='release';game.start=time;}}
    else if(game.phase==='release'){
     game.held.y+=300*dt;
-    if(time-game.start>650){const prize=game.held;game.items=game.items.filter(i=>i!==prize);game.prizes.push(prize);el('prizes').append(card(prize,null,null));game.held=null;game.phase='idle';el('game-score').textContent=`已抓到 ${game.prizes.length} 件`;el('game-message').textContent=game.items.length?`抓到了！${label(prize.probabilities)}。继续抓下一件。`:'全部抓完！可以重新装入再玩一次。';}
+    if(time-game.start>650){beginSort(game.held,time);game.phase='sorting';}
    }
-   if(game.held&&game.phase!=='release'){game.held.x=game.x;game.held.y=game.y+28;}
+   if(game.held&&!['release','sorting'].includes(game.phase)){game.held.x=game.x;game.held.y=game.y+28;}
    if(game.phase==='idle'){el('grab').disabled=!game.items.length;el('restart-game').disabled=false;el('open-game').disabled=collection.length<2;}
    ctx.clearRect(0,0,800,520);const bg=ctx.createLinearGradient(0,0,0,520);bg.addColorStop(0,'#dceee1');bg.addColorStop(1,'#f5edce');ctx.fillStyle=bg;ctx.fillRect(0,0,800,520);
    ctx.fillStyle='#244f40';ctx.fillRect(0,0,800,30);ctx.fillStyle='#dff49c';ctx.font='14px sans-serif';ctx.fillText('真实照片 · 再抓一下',24,21);
    ctx.strokeStyle='#b6cbb7';ctx.lineWidth=2;ctx.strokeRect(28,40,744,420);ctx.fillStyle='#c4d6ba';ctx.fillRect(28,452,744,12);
    ctx.fillStyle='#175b45';ctx.fillRect(26,422,85,42);ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.fillText('收集出口',41,448);
-   for(const item of game.items){ctx.save();ctx.translate(item.x,item.y);ctx.rotate(item.angle);ctx.shadowColor='#123c3033';ctx.shadowBlur=8;ctx.shadowOffsetY=5;ctx.drawImage(item.sprite,-item.w/2,-item.h/2,item.w,item.h);ctx.restore();}
+   for(const item of game.items){if(game.phase==='sorting'&&item===game.held)continue;ctx.save();ctx.translate(item.x,item.y);ctx.rotate(item.angle);ctx.shadowColor='#123c3033';ctx.shadowBlur=8;ctx.shadowOffsetY=5;ctx.drawImage(item.sprite,-item.w/2,-item.h/2,item.w,item.h);ctx.restore();}
    ctx.strokeStyle='#426455';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(game.x,30);ctx.lineTo(game.x,game.y);ctx.stroke();ctx.fillStyle='#175b45';ctx.fillRect(game.x-18,game.y-6,36,17);
    const spread=game.held?14:30;ctx.strokeStyle='#175b45';ctx.lineWidth=7;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(game.x-12,game.y+8);ctx.lineTo(game.x-spread,game.y+28);ctx.lineTo(game.x-9,game.y+42);ctx.moveTo(game.x+12,game.y+8);ctx.lineTo(game.x+spread,game.y+28);ctx.lineTo(game.x+9,game.y+42);ctx.stroke();
    ctx.fillStyle='#175b45';ctx.fillRect(0,475,800,45);ctx.fillStyle='#dff49c';ctx.font='18px sans-serif';ctx.fillText('RE:CATCH',30,504);ctx.font='12px sans-serif';ctx.fillText('← → 移动 / 空格抓取',610,503);
   }
+  if(!el('claw-game').hidden)drawSorter(time);
   requestAnimationFrame(draw);
  }
+ const binNames=['纸板','玻璃','金属','纸张','塑料','其他','待确认'];
+ const binColors=['#ad7542','#4b9c89','#6383a7','#a7944d','#508cad','#74776f','#b27b41'];
+ const sorter={flight:null,counts:Array(7).fill(0),flash:null};
+ const sc=el('sort-canvas'),sx=sc.getContext('2d');
+ function beginSort(item,time){
+  const ranked=item.probabilities.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v),a=ranked[0];
+  const uncertain=a.v<state.config.confidence_threshold||a.v-ranked[1].v<state.config.margin_threshold;
+  const bin=uncertain?6:a.i;sorter.flight={item,bin,start:time};
+  el('sort-status').textContent=uncertain?'预测不确定，物品送往待确认区。':`正在送往${binNames[bin]}材质桶…`;
+  el('game-message').textContent='物品进入分拣滑道，等待入桶…';sc.scrollIntoView({block:'center',behavior:'smooth'});
+ }
+ function drawSorter(time){
+  const f=sorter.flight,p=f?Math.min(1,(time-f.start)/1800):0;
+  sx.clearRect(0,0,800,250);sx.fillStyle='#f3f7ed';sx.fillRect(0,0,800,250);
+  // The chute branches toward the material bin selected by the classifier.
+  sx.lineCap='round';sx.lineWidth=11;sx.strokeStyle='#d2dfcc';sx.beginPath();sx.moveTo(65,0);sx.lineTo(65,32);sx.lineTo(735,32);sx.stroke();
+  for(let i=0;i<7;i++){
+   const x=15+i*112,cx=x+49,active=f?.bin===i,flash=sorter.flash?.bin===i&&time-sorter.flash.time<1000;
+   sx.strokeStyle=active?'#d7b64e':'#d2dfcc';sx.lineWidth=7;sx.beginPath();sx.moveTo(cx,32);sx.lineTo(cx,113);sx.stroke();
+   if(active||flash){sx.fillStyle='#e0edaa';sx.beginPath();sx.ellipse(cx,195,55,13,0,0,Math.PI*2);sx.fill();}
+   sx.fillStyle=binColors[i];sx.fillRect(x+9,130,80,74);sx.fillStyle='#ffffff22';sx.fillRect(x+17,138,9,56);
+   // Lid swings around its back edge while the cutout approaches the opening.
+   const open=active?Math.sin(Math.min(1,p/.65)*Math.PI/2):flash?Math.max(0,1-(time-sorter.flash.time)/450):0;
+   sx.save();sx.translate(x+7,126);sx.rotate(-open*.85);sx.fillStyle=binColors[i];sx.fillRect(0,-6,84,9);sx.fillStyle='#ffffff77';sx.fillRect(30,-10,24,5);sx.restore();
+   sx.fillStyle='#fff';sx.textAlign='center';sx.font='bold 15px sans-serif';sx.fillText(binNames[i],cx,172);sx.font='12px sans-serif';sx.fillText(sorter.counts[i]+' 件',cx,192);
+   sx.fillStyle='#5c7564';sx.font='11px sans-serif';sx.fillText(i===6?'请人工确认':'预测材质',cx,224);
+   if(flash){const t=(time-sorter.flash.time)/1000;sx.fillStyle=binColors[i];for(let k=0;k<9;k++){const a=k*Math.PI*2/9;sx.globalAlpha=1-t;sx.fillRect(cx+Math.cos(a)*t*55,120+Math.sin(a)*t*35-t*30,4,4);}sx.globalAlpha=1;}
+  }
+  sx.textAlign='left';
+  if(f){
+   const target=64+112*f.bin;let x,y,scale=1;
+   if(p<.65){const t=p/.65;x=65+(target-65)*(t*t*(3-2*t));y=15+25*Math.sin(t*Math.PI);}
+   else {const t=(p-.65)/.35;x=target;y=15+145*t*t;scale=1-.65*t;}
+   sx.save();sx.translate(x,y);sx.rotate(Math.sin(p*Math.PI*4)*.15);const item=f.item,w=item.w*.65*scale,h=item.h*.65*scale;sx.drawImage(item.sprite,-w/2,-h/2,w,h);sx.restore();
+   // Front rim occludes the sprite for the last part of the drop.
+   if(p>.9){sx.fillStyle=binColors[f.bin];sx.fillRect(target-40,133,80,71);sx.fillStyle='#fff';sx.textAlign='center';sx.font='bold 15px sans-serif';sx.fillText(binNames[f.bin],target,172);sx.textAlign='left';}
+   if(p===1){const prize=f.item;sorter.counts[f.bin]++;sorter.flash={bin:f.bin,time};sorter.flight=null;game.items=game.items.filter(i=>i!==prize);game.prizes.push(prize);el('prizes').append(card(prize,null,null));game.held=null;game.phase='idle';el('game-score').textContent=`已抓到 ${game.prizes.length} 件`;el('sort-status').textContent=f.bin===6?'已进入待确认区，请人工确认材质。':`已落入${binNames[f.bin]}材质桶！`;el('game-message').textContent=game.items.length?'投放完成！继续抓下一件。':'全部抓完并分拣！可以重新装入再玩一次。';}
+  }
+ }
+
  requestAnimationFrame(draw);render();
 })();

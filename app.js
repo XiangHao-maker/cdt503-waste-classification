@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const state = {config:null, worker:null, ready:false, busy:false, image:false, source:'', stream:null, request:0, pending:0, result:null, cameraRequest:0, timer:null};
+const state = {imageRevision:0,sceneStatus:'empty',sceneItems:[],config:null, worker:null, ready:false, busy:false, image:false, source:'', stream:null, request:0, pending:0, result:null, cameraRequest:0, timer:null};
 const descriptions = {
   cardboard:['纸板 / CARDBOARD','干净纸板通常可回收','去除胶带、塑料填充物，压平后保持干燥。沾油或严重污染的纸板请查询当地投放要求。'],
   glass:['玻璃 / GLASS','普通玻璃容器通常可回收','倒空内容物，按当地要求处理瓶盖。碎玻璃应妥善包裹并标记；陶瓷、灯泡和耐热玻璃不能直接按普通玻璃瓶处理。'],
@@ -10,8 +10,8 @@ const descriptions = {
   trash:['其他垃圾 / TRASH','需要进一步人工确认','这是训练集中的混合剩余类别，不代表所有物品都应投入其他垃圾桶。食品、药品、电池等请单独按当地规则判断。']
 };
 function message(text='') {$('message').textContent=text;}
-function controls() {$('classify').disabled=!state.ready||!state.image||state.busy; $('classify').firstElementChild.textContent=state.busy?'正在分类…':'开始分类';}
-function resetResult() {$('result').hidden=true;$('result-empty').hidden=false;$('result-time').textContent='本地 AI 推理';state.result=null;}
+function controls() {if(state.image&&state.sceneStatus!=='ready'){$('classify').disabled=true;$('classify').firstElementChild.textContent=state.sceneStatus==='pending'?'正在检查物品数量…':'请重试物品提取';return;}if(state.image&&state.sceneItems.length>2){$('classify').disabled=false;$('classify').firstElementChild.textContent='查看逐件结果';return;}$('classify').disabled=!state.ready||!state.image||state.busy; $('classify').firstElementChild.textContent=state.busy?'正在分类…':'开始分类';}
+function resetResult() {$('multi-result').hidden=true;$('result').hidden=true;$('result-empty').hidden=false;$('result-time').textContent='本地 AI 推理';state.result=null;}
 function invalidate() {state.request++; state.pending=0;state.busy=false;clearTimeout(state.timer);controls();resetResult();}
 function initWorker() {
   if(state.worker)state.worker.terminate();
@@ -37,14 +37,14 @@ function changeMode(camera){
   if(!camera)stopCamera();message('');
 }
 function putImage(image, source){
-  invalidate();const canvas=$('preview');const max=1400;
+  state.imageRevision++;state.sceneStatus='pending';state.sceneItems=[];invalidate();const canvas=$('preview');const max=1400;
   const w=image.videoWidth||image.naturalWidth||image.width,h=image.videoHeight||image.naturalHeight||image.height;
   if(!w||!h)throw new Error('图片没有有效尺寸，请更换一张。');
   const scale=Math.min(1,max/Math.max(w,h));canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
   const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
   state.image=true;state.source=source;$('preview-wrap').hidden=false;$('image-name').textContent=source;
   document.querySelector('.input-panel').classList.add('has-image');$('dropzone').querySelector('strong').textContent='换一张图片';$('input-note').textContent='准备好后，点击“开始分类”。画面中尽量只保留一件物品。';
-  window.dispatchEvent(new CustomEvent('waste-image',{detail:{canvas,source}}));
+  window.dispatchEvent(new CustomEvent('waste-image',{detail:{canvas,source,revision:state.imageRevision}}));
   message(Math.min(w,h)<100?'图片分辨率偏低，建议换一张更清楚的照片。':'');controls();
 }
 async function readFile(file){
@@ -57,7 +57,7 @@ async function readFile(file){
   catch(e){message('图片读取失败。请确认文件完整，或转为 JPG / PNG 后重试。');}
   finally{URL.revokeObjectURL(url);$('file-input').value='';}
 }
-function clearImage(){invalidate();state.image=false;state.source='';$('preview-wrap').hidden=true;$('preview').width=1;$('preview').height=1;document.querySelector('.input-panel').classList.remove('has-image');$('dropzone').querySelector('strong').textContent='选择图片，或拖到这里';$('input-note').textContent='手机照片也可以传到电脑后上传。';message('');controls();}
+function clearImage(){state.imageRevision++;state.sceneStatus='empty';state.sceneItems=[];invalidate();state.image=false;state.source='';$('preview-wrap').hidden=true;$('preview').width=1;$('preview').height=1;document.querySelector('.input-panel').classList.remove('has-image');$('dropzone').querySelector('strong').textContent='选择图片，或拖到这里';$('input-note').textContent='手机照片也可以传到电脑后上传。';message('');controls();}
 async function listCameras(){
   if(!navigator.mediaDevices?.enumerateDevices)return;
   const old=$('camera-select').value;
@@ -101,6 +101,8 @@ function prepareTensor(){
   return {tensor,blank:std<.018,dark:mean<.06};
 }
 function classify(){
+  if(state.sceneStatus!=='ready'){message('请等待物品数量检查；检查失败时，请重新提取当前图片。');return;}
+  if(state.sceneItems.length>2){renderMultiResult();return;}
   if(!state.ready||!state.image||state.busy)return;
   const {tensor,blank,dark}=prepareTensor();
   if(blank||dark){message(blank?'画面接近纯色，暂时无法判断。请确认物品清楚可见后重新拍摄。':'画面太暗，建议补充光线后重新拍摄。');resetResult();return;}
@@ -108,7 +110,7 @@ function classify(){
   state.worker.postMessage({type:'predict',id:state.pending,tensor},[tensor.buffer]);
   state.timer=setTimeout(()=>{if(state.busy){state.worker.terminate();failModel('本次识别等待时间过长，请重新加载模型后再试。');}},45000);
 }
-function renderResult(data){
+function renderResult(data){if(state.sceneStatus!=='ready'||state.sceneItems.length>2)return;
   const p=data.probabilities,rank=p.map((value,i)=>({value,i})).sort((a,b)=>b.value-a.value),top=rank[0];
   const config=state.config,key=config.classes[top.i],uncertain=top.value<config.confidence_threshold||top.value-rank[1].value<config.margin_threshold;
   const desc=descriptions[key];$('result-empty').hidden=true;$('result').hidden=false;
@@ -150,3 +152,25 @@ async function init(){
   }catch(e){failModel('项目文件不完整，请先完成训练与导出，并检查 config.json 是否存在。');}
 }
 init();
+
+function setSceneAnalysis(revision,status,items=[]){
+ if(revision!==state.imageRevision||!state.image)return;
+ state.sceneStatus=status;state.sceneItems=items.map(item=>{const c=document.createElement('canvas');c.width=item.sprite.width;c.height=item.sprite.height;c.getContext('2d').drawImage(item.sprite,0,0);return {...item,sprite:c};});controls();
+ if(status==='pending'){resetResult();$('result-empty').querySelector('h3').textContent='正在检查画面中的物品';$('result-empty').querySelector('p').textContent='检查完成后，再选择合适的识别方式。';}
+ if(status==='error'){resetResult();$('result-empty').querySelector('h3').textContent='暂时无法确认物品数量';$('result-empty').querySelector('p').textContent='请重新提取当前图片，避免把多个物品误判成一个类别。';}
+ if(status==='ready'){
+  if(items.length>2)renderMultiResult();
+  else {resetResult();$('result-empty').querySelector('h3').textContent='物品检查完成';$('result-empty').querySelector('p').textContent='可以点击开始分类。多个物品的材质请以逐件结果为参考。';}
+ }
+}
+function renderMultiResult(){
+ resetResult();$('result-empty').hidden=true;$('multi-result').hidden=false;$('result-time').textContent='逐件材质预测';
+ $('multi-title').textContent='检测到 '+state.sceneItems.length+' 件候选物品';
+ $('multi-items').replaceChildren();
+ state.sceneItems.forEach((item,index)=>{
+  const row=document.createElement('article'),c=document.createElement('canvas');c.width=110;c.height=100;
+  const s=Math.min(100/item.sprite.width,90/item.sprite.height);c.getContext('2d').drawImage(item.sprite,(110-item.sprite.width*s)/2,(100-item.sprite.height*s)/2,item.sprite.width*s,item.sprite.height*s);
+  const p=item.probabilities,rank=p.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v),a=rank[0],uncertain=a.v<state.config.confidence_threshold||a.v-rank[1].v<state.config.margin_threshold;
+  const text=document.createElement('p');text.textContent='物品 '+(index+1)+' · '+(uncertain?'待确认 · ':'')+state.config.labels[a.i]+' '+Math.round(a.v*100)+'%';row.append(c,text);$('multi-items').append(row);
+ });
+}
