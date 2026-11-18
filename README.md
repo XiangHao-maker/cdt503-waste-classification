@@ -26,6 +26,8 @@ Physics update: locally bundled Matter.js 0.20.0 simulates the cutouts with grav
 
 The user selected mouse/touch dragging as the shaking input. No hardware sensor, device-motion permission, native device driver, or native helper is needed. Shake the handle/canvas or use the Shake machine button.
 
+`play.js` is the editable arcade source. HTML loads an immutable `arcade-<sha256 prefix>.js` copy to prevent an older cached script from being mixed with new UI. After editing the source, run `node ../scripts/prepare_arcade_assets.cjs` from this directory and publish both the generated asset and updated HTML. Preserve prior hashed assets while cached pages may still reference them.
+
 Current-photo safeguard: until extraction finishes, whole-image classification is disabled. When **more than two** foreground candidates are found in that single photo, the right panel automatically displays individual predictions and suppresses the whole-image result, confidence bars and result export. A per-photo revision discards older scene counts when a newer photo arrives. Extraction failure keeps classification blocked until retry. Collection size does not determine this safeguard.
 
 After a catch, the cutout drops through the outlet, travels along the sorting chute, and falls into one of the six predicted-material bins with a swinging lid, particles and a per-bin counter. Below-threshold or ambiguous predictions route to a seventh **Needs confirmation** area. These are material-learning game bins, not municipal disposal instructions. Clearing/restarting cancels the active flight and resets bin counts.
