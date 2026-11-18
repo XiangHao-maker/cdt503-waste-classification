@@ -44,6 +44,7 @@ function putImage(image, source){
   const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
   state.image=true;state.source=source;$('preview-wrap').hidden=false;$('image-name').textContent=source;
   document.querySelector('.input-panel').classList.add('has-image');$('dropzone').querySelector('strong').textContent='换一张图片';$('input-note').textContent='准备好后，点击“开始分类”。画面中尽量只保留一件物品。';
+  window.dispatchEvent(new CustomEvent('waste-image',{detail:{canvas,source}}));
   message(Math.min(w,h)<100?'图片分辨率偏低，建议换一张更清楚的照片。':'');controls();
 }
 async function readFile(file){
@@ -65,7 +66,7 @@ async function listCameras(){
   all.forEach((d,i)=>$('camera-select').append(new Option(d.label||`摄像头 ${i+1}`,d.deviceId)));
   if(all.some(d=>d.deviceId===old))$('camera-select').value=old;
 }
-function stopCamera(){state.cameraRequest++;if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null;}$('video').srcObject=null;$('camera-view').hidden=true;$('capture').disabled=true;$('camera-stop').disabled=true;$('camera-start').disabled=false;}
+function stopCamera(){state.cameraRequest++;if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null;}$('video').srcObject=null;$('camera-view').hidden=true;$('capture').disabled=true;$('camera-stop').disabled=true;$('camera-start').disabled=false;window.dispatchEvent(new Event('waste-camera-stopped'));}
 async function startCamera(){
   stopCamera();const ticket=state.cameraRequest;
   if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia){message('摄像头需要 localhost 或 HTTPS。请双击“启动垃圾分类.cmd”打开，上传图片仍可使用。');return;}
@@ -134,9 +135,9 @@ async function loadReport(){
 function drawCurve(history){const c=$('training-chart'),ctx=c.getContext('2d'),w=c.width,h=c.height,left=45,right=w-45,top=22,bottom=h-32;ctx.clearRect(0,0,w,h);ctx.font='11px sans-serif';const lossmax=Math.ceil(Math.max(...history.map(x=>x.train_loss))*2)/2;for(let i=0;i<=4;i++){const y=bottom-(bottom-top)*i/4;ctx.strokeStyle='#e1e8d7';ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();ctx.fillStyle='#6c7c67';ctx.fillText((lossmax*i/4).toFixed(1),8,y+4);ctx.fillText(Math.round(i/4*100)+'%',right+8,y+4);}for(const [key,color,max] of [['train_loss','#5c83a8',lossmax],['validation_accuracy','#4f7c40',1]]){ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();history.forEach((row,i)=>{const x=left+(right-left)*i/Math.max(1,history.length-1),y=bottom-row[key]/max*(bottom-top);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();}ctx.fillStyle='#74816b';ctx.fillText('第1轮',left,bottom+21);ctx.fillText('第'+history.length+'轮',right-35,bottom+21);}
 async function init(){
   $('upload-tab').onclick=()=>changeMode(false);$('camera-tab').onclick=()=>changeMode(true);
-  $('file-input').onchange=e=>readFile(e.target.files[0]);
+  $('file-input').onchange=e=>window.wasteFiles?window.wasteFiles(Array.from(e.target.files)):readFile(e.target.files[0]);
   const dz=$('dropzone');for(const name of ['dragenter','dragover'])dz.addEventListener(name,e=>{e.preventDefault();dz.classList.add('dragover');});
-  for(const name of ['dragleave','drop'])dz.addEventListener(name,e=>{e.preventDefault();dz.classList.remove('dragover');});dz.addEventListener('drop',e=>readFile(e.dataTransfer.files[0]));
+  for(const name of ['dragleave','drop'])dz.addEventListener(name,e=>{e.preventDefault();dz.classList.remove('dragover');});dz.addEventListener('drop',e=>window.wasteFiles?window.wasteFiles(Array.from(e.dataTransfer.files)):readFile(e.dataTransfer.files[0]));
   // Prevent accidental navigation when a file is dropped outside the drop zone.
   window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
   $('clear').onclick=clearImage;$('camera-start').onclick=startCamera;$('camera-stop').onclick=()=>{stopCamera();message('摄像头已关闭。');};$('capture').onclick=capture;

@@ -6,3 +6,6 @@
 - Sample photos and failure illustrations are genuine images from the fixed held-out TrashNet test split. They are not AI-generated assets and not a separate real-world camera evaluation.
 
 Model: frozen ImageNet MobileNetV3-Large feature extractor + a supervised class-balanced multinomial logistic head trained by this project. Not a reproduction of the authors' original TrashNet model.
+# Added foreground extraction model (2026-11-18)
+
+`models/u2netp.onnx`: U²-Net lightweight salient-object segmentation by Xuebin Qin et al.; source https://github.com/xuebinqin/U-2-Net (upstream Apache-2.0 text in `licenses/U2NET-LICENSE.txt`). ONNX weights distributed by rembg at https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx. Download MD5: `8e83ca70e441ab06c318d82300c84806`. This is a pretrained third-party foreground model, not a model trained on this project's garbage classes. The release asset has no separate conversion record; provenance is recorded here without implying evaluation on this project's data.
