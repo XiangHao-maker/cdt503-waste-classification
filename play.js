@@ -144,8 +144,19 @@
  }
  function shakeMachine(){if(el('claw-game').hidden)return;clearInterval(shakePulse);let n=0;physics.shake(18,-10);shakePulse=setInterval(()=>{if(el('claw-game').hidden||document.hidden||++n>6){clearInterval(shakePulse);stopDrag();return;}const s=n%2?1:-1;physics.shake(s*16,-6);shell.style.transform=`translate(${s*6}px,0) rotate(${s*.6}deg)`;},130);}
  el('shake-machine').onclick=shakeMachine;el('shake-handle').addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();shakeMachine();}});
- function pauseShaking(){stopDrag();clearInterval(shakePulse);physics.shock={x:0,y:0};}
- window.addEventListener('blur',pauseShaking);document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseShaking();});window.addEventListener('pagehide',pauseShaking);
+ const windowMotion=new WindowMotionTracker();
+ const deviceButton=el('device-motion-enable');
+ const deviceMotion=new DeviceMotionInput(window,(x,y)=>physics.shake(x,y),text=>{el('motion-status').textContent=text;deviceButton.textContent=deviceMotion.handler?'关闭机身运动感应':'启用机身运动感应';},()=>!document.hidden&&!el('claw-game').hidden);
+ deviceButton.onclick=async()=>{if(deviceMotion.handler){deviceMotion.stop('机身感应已关闭，仍可使用窗口或鼠标晃动。');return;}deviceButton.disabled=true;try{await deviceMotion.start();}finally{deviceButton.disabled=false;}};
+ el('window-motion-enable').onchange=()=>{windowMotion.reset();el('window-motion-status').textContent=el('window-motion-enable').checked?'拖动未最大化的浏览器窗口；浏览器需允许网页读取窗口位置。':'窗口晃动已关闭，仍可在网页内拖动机器。';};
+ const windowMotionTimer=setInterval(()=>{
+  const force=windowMotion.sample({x:window.screenX,y:window.screenY,width:window.outerWidth,height:window.outerHeight,time:performance.now(),active:el('window-motion-enable').checked&&!document.hidden&&!el('claw-game').hidden});
+  if(force){physics.shake(force.x,force.y);if(force.moved)el('window-motion-status').textContent='已感应到窗口移动，物品随惯性晃动。';}
+ },50);
+
+
+ function pauseShaking(){windowMotion.reset();deviceMotion.baseline=null;stopDrag();clearInterval(shakePulse);physics.shock={x:0,y:0};}
+ window.addEventListener('blur',pauseShaking);document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseShaking();});window.addEventListener('pagehide',()=>{pauseShaking();deviceMotion.stop();});
 
 
  const binNames=['纸板','玻璃','金属','纸张','塑料','其他','待确认'];
