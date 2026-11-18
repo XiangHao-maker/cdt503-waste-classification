@@ -9,3 +9,6 @@ Model: frozen ImageNet MobileNetV3-Large feature extractor + a supervised class-
 # Added foreground extraction model (2026-11-18)
 
 `models/u2netp.onnx`: U²-Net lightweight salient-object segmentation by Xuebin Qin et al.; source https://github.com/xuebinqin/U-2-Net (upstream Apache-2.0 text in `licenses/U2NET-LICENSE.txt`). ONNX weights distributed by rembg at https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx. Download MD5: `8e83ca70e441ab06c318d82300c84806`. This is a pretrained third-party foreground model, not a model trained on this project's garbage classes. The release asset has no separate conversion record; provenance is recorded here without implying evaluation on this project's data.
+# Matter.js physics engine
+
+`vendor/matter.min.js`, version 0.20.0, by Liam Brummitt and contributors. MIT license: `licenses/MATTER-LICENSE.txt`. Source: https://github.com/liabru/matter-js ; bundled distribution: https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js . SHA-256: `72d30be0f579eb02ce1e0b6f9d359a4f392e6837e5a26ba8be5dbee7f88e24ae`.

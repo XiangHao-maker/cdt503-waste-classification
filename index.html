@@ -5,8 +5,8 @@
   <meta name="theme-color" content="#175b45">
   <meta name="description" content="XIANG Hao 的 CDT503 垃圾分类项目：上传图片或用电脑摄像头拍照，在浏览器本地识别六类垃圾材质。">
   <title>XIANG Hao · 垃圾分类助手</title>
-  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=20261118-bins">
-  <script defer src="app.js?v=20261118-bins"></script><script defer src="play.js?v=20261118-bins"></script>
+  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=20261118-physics">
+  <script defer src="vendor/matter.min.js"></script><script defer src="machine-physics.js?v=20261118-physics"></script><script defer src="app.js?v=20261118-bins"></script><script defer src="play.js?v=20261118-bins"></script>
 </head>
 <body>
 <header class="topbar"><a class="brand" href="#"><span class="brand-icon" aria-hidden="true">♻</span><span>再分一下<small>XIANG Hao · CDT503</small></span></a><nav aria-label="页面导航"><a href="#workspace">开始识别</a><a href="#collection">抓娃娃</a><a href="#about">模型与实验</a></nav><span class="privacy"><i></i>照片仅在本机处理</span></header>
@@ -49,7 +49,7 @@
  <div id="collected-items" class="collected-items" aria-label="已确认物品"></div>
  <div id="claw-game" hidden>
   <div class="arcade-top"><span>RE:CATCH · 再抓一下</span><span id="game-score">已抓到 0 件</span></div>
-  <canvas id="game-canvas" width="800" height="520" tabindex="0" aria-label="抓娃娃机，左右方向键移动，空格抓取"></canvas>
+  <div id="machine-shell"><div id="shake-handle" tabindex="0" role="button" aria-label="按住并拖动摇晃机器">⠿ 按住这里，左右摇晃机器 <span>真实碰撞 · 重力 · 滚动</span></div><canvas id="game-canvas" width="800" height="520" tabindex="0" aria-label="抓娃娃机，左右方向键移动，空格抓取；拖动可晃动机器"></canvas></div><div class="shake-controls"><button id="shake-machine" class="secondary">摇一摇机器 ↔</button><button id="motion-enable" class="text-button">启用设备晃动感应</button><span id="motion-status" role="status">可用鼠标或手指拖动机器来晃动。</span></div>
   <div class="sort-zone"><p>材质分拣滑道 <small>游戏按预测材质投桶；待确认不自动归类，实际投放请查当地规则。</small></p><canvas id="sort-canvas" width="800" height="250" aria-label="七个分拣区：纸板、玻璃、金属、纸张、塑料、其他、待确认"></canvas><p id="sort-status" role="status">抓到物品后，会沿滑道进入对应材质桶。</p></div><div class="game-controls"><button id="move-left" class="secondary" aria-label="向左移动">← 向左</button><button id="grab" class="primary">抓取 ↓</button><button id="move-right" class="secondary" aria-label="向右移动">向右 →</button><button id="restart-game" class="text-button">重新装入</button></div>
   <p id="game-message" role="status">对准物品，再按抓取。电脑也可使用方向键和空格。</p><div id="prizes" class="collected-items" aria-label="抓到的物品"></div>
  </div>

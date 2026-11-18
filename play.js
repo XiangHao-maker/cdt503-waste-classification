@@ -33,7 +33,7 @@
  function render(){
   el('cutout-list').replaceChildren();el('collected-items').replaceChildren();
   candidates.forEach(item=>el('cutout-list').append(card(item,()=>{candidates.splice(candidates.indexOf(item),1);item.sprite.close();render();},()=>{collection.push(item);candidates.splice(candidates.indexOf(item),1);render();})));
-  collection.forEach(item=>el('collected-items').append(card(item,()=>{if(game.phase!=='idle')return;collection.splice(collection.indexOf(item),1);game.items=game.items.filter(i=>i.id!==item.id);if(collection.length<2)el('claw-game').hidden=true;render();},null)));
+  collection.forEach(item=>el('collected-items').append(card(item,()=>{if(game.phase!=='idle')return;collection.splice(collection.indexOf(item),1);for(const old of game.items)if(old.id===item.id)physics.remove(old);game.items=game.items.filter(i=>i.id!==item.id);if(collection.length<2)el('claw-game').hidden=true;render();},null)));
   el('collection-count').textContent=`${collection.length} 件已确认`;el('confirm-all').disabled=!candidates.length;
   el('open-game').disabled=collection.length<2||game.phase!=='idle';el('open-game').textContent=collection.length<2?'至少收集两件后开启抓娃娃机':`把 ${collection.length} 件物品放入抓娃娃机`;
  }
@@ -76,7 +76,7 @@
  preview.addEventListener('pointercancel',()=>{endSelection();if(current)preview.getContext('2d').drawImage(current,0,0,preview.width,preview.height);});
  el('clear').addEventListener('click',()=>{current=null;endSelection();el('select-box').disabled=true;el('extract-now').disabled=true;});
  el('confirm-all').onclick=()=>{collection.push(...candidates.splice(0));render();};
- el('clear-collection').onclick=()=>{epoch++;candidates.forEach(i=>i.sprite.close());candidates.length=0;collection.length=0;game.items=[];game.prizes=[];game.phase='idle';sorter.flight=null;sorter.counts.fill(0);el('claw-game').hidden=true;el('prizes').replaceChildren();status('收集区已清空。');render();};
+ el('clear-collection').onclick=()=>{epoch++;candidates.forEach(i=>i.sprite.close());candidates.length=0;collection.length=0;game.items=[];game.prizes=[];game.phase='idle';physics.reset([]);stopDrag();clearInterval(shakePulse);sorter.flight=null;sorter.counts.fill(0);el('claw-game').hidden=true;el('prizes').replaceChildren();status('收集区已清空。');render();};
  // Serial inference: never build a queue of camera frames. Still photos take priority.
  async function live(){
   const video=el('video'),overlay=el('live-overlay');
@@ -98,10 +98,10 @@
  }
  window.addEventListener('waste-camera-stopped',()=>{const c=el('live-overlay');c.getContext('2d').clearRect(0,0,c.width,c.height);el('live-label').textContent='本机预览';el('live-status').textContent='摄像头已关闭，重新开启即可继续实时识别。';stable='';stableCount=0;});
  setInterval(live,250);
- // Deterministic arcade interaction with gravity, stacking, and positional catches.
+ // Fixed-step rigid-body simulation, shared by dragging and optional device motion.
  const game={items:[],prizes:[],phase:'idle',x:400,y:85,held:null,start:0,axis:0,last:0};
- const gc=el('game-canvas'),ctx=gc.getContext('2d');
- function startGame(){if(collection.length<2)return;game.items=collection.map((item,i)=>({...item,x:100+(i%7)*94,y:170-Math.floor(i/7)*85,vy:0,w:Math.min(85,85*item.sprite.width/item.sprite.height),h:Math.min(85,85*item.sprite.height/item.sprite.width),angle:(i%3-1)*.14}));game.prizes=[];sorter.flight=null;sorter.counts.fill(0);sorter.flash=null;el('sort-status').textContent='抓到物品后，会沿滑道进入对应材质桶。';game.phase='idle';game.held=null;game.x=400;game.y=85;el('claw-game').hidden=false;el('prizes').replaceChildren();el('game-score').textContent='已抓到 0 件';el('game-message').textContent='对准物品，再按抓取。';el('grab').disabled=false;gc.scrollIntoView({block:'center'});render();}
+ const gc=el('game-canvas'),ctx=gc.getContext('2d'),physics=new WastePhysics(Matter);
+ function startGame(){if(collection.length<2)return;pauseShaking();game.items=collection.map((item,i)=>({...item,x:100+(i%7)*94,y:170-Math.floor(i/7)*85,vy:0,w:Math.min(85,85*item.sprite.width/item.sprite.height),h:Math.min(85,85*item.sprite.height/item.sprite.width),angle:(i%3-1)*.14}));game.prizes=[];physics.reset(game.items);sorter.flight=null;sorter.counts.fill(0);sorter.flash=null;el('sort-status').textContent='抓到物品后，会沿滑道进入对应材质桶。';game.phase='idle';game.held=null;game.x=400;game.y=85;el('claw-game').hidden=false;el('prizes').replaceChildren();el('game-score').textContent='已抓到 0 件';el('game-message').textContent='对准物品，再按抓取。';el('grab').disabled=false;gc.scrollIntoView({block:'center'});render();}
  el('open-game').onclick=startGame;el('restart-game').onclick=()=>{if(game.phase==='idle')startGame();};
  function grab(){if(game.phase!=='idle'||!game.items.length)return;game.phase='down';game.start=performance.now();game.held=null;el('grab').disabled=true;el('restart-game').disabled=true;el('game-message').textContent='爪子下降中…';render();}
  el('grab').onclick=grab;
@@ -111,26 +111,23 @@
   const dt=Math.min(.035,(time-(game.last||time))/1000);game.last=time;
   if(!el('claw-game').hidden){
    if(game.phase==='idle')game.x=Math.max(65,Math.min(735,game.x+game.axis*260*dt));
-   for(const item of game.items){if(item===game.held)continue;item.vy+=420*dt;item.y+=item.vy*dt;let floor=452-item.h/2;
-    for(const other of game.items)if(other!==item&&other!==game.held&&Math.abs(item.x-other.x)<(item.w+other.w)*.38&&other.y>item.y)floor=Math.min(floor,other.y-other.h/2-item.h/2-3);
-    if(item.y>floor){item.y=floor;item.vy=0;}
-   }
+   physics.step(dt);
    if(game.phase==='down'){
-    game.y+=230*dt;const target=game.items.filter(i=>Math.abs(i.x-game.x)<i.w*.45+18&&i.y-i.h/2<=game.y+23&&i.y>=game.y-15).sort((a,b)=>a.y-b.y)[0];
-    if(target||game.y>=420){game.held=target||null;game.phase='up';el('game-message').textContent=target?'抓住了，正在提升…':'没有对准，换个位置再试。';}
+    game.y+=230*dt;const target=game.items.filter(i=>{const b=i.body.bounds;return game.x>=b.min.x-18&&game.x<=b.max.x+18&&b.min.y<=game.y+32&&b.max.y>=game.y-12;}).sort((a,b)=>a.body.bounds.min.y-b.body.bounds.min.y)[0];
+    if(target||game.y>=420){game.held=target||null;if(target)physics.hold(target);game.phase='up';el('game-message').textContent=target?'抓住了，正在提升…':'没有对准，换个位置再试。';}
    }else if(game.phase==='up'){game.y=Math.max(85,game.y-230*dt);if(game.y===85)game.phase=game.held?'return':'idle';}
    else if(game.phase==='return'){game.x=Math.max(65,game.x-300*dt);if(game.x===65){game.phase='release';game.start=time;}}
    else if(game.phase==='release'){
-    game.held.y+=300*dt;
-    if(time-game.start>650){beginSort(game.held,time);game.phase='sorting';}
+    game.held.y+=500*dt;
+    if(game.held.y>505){physics.remove(game.held);beginSort(game.held,time);game.phase='sorting';}
    }
-   if(game.held&&!['release','sorting'].includes(game.phase)){game.held.x=game.x;game.held.y=game.y+28;}
+   if(game.held&&!['release','sorting'].includes(game.phase)){game.held.x=game.x;game.held.y=game.y+28;physics.pin(game.held);}
    if(game.phase==='idle'){el('grab').disabled=!game.items.length;el('restart-game').disabled=false;el('open-game').disabled=collection.length<2;}
    ctx.clearRect(0,0,800,520);const bg=ctx.createLinearGradient(0,0,0,520);bg.addColorStop(0,'#dceee1');bg.addColorStop(1,'#f5edce');ctx.fillStyle=bg;ctx.fillRect(0,0,800,520);
    ctx.fillStyle='#244f40';ctx.fillRect(0,0,800,30);ctx.fillStyle='#dff49c';ctx.font='14px sans-serif';ctx.fillText('真实照片 · 再抓一下',24,21);
    ctx.strokeStyle='#b6cbb7';ctx.lineWidth=2;ctx.strokeRect(28,40,744,420);ctx.fillStyle='#c4d6ba';ctx.fillRect(28,452,744,12);
    ctx.fillStyle='#175b45';ctx.fillRect(26,422,85,42);ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.fillText('收集出口',41,448);
-   for(const item of game.items){if(game.phase==='sorting'&&item===game.held)continue;ctx.save();ctx.translate(item.x,item.y);ctx.rotate(item.angle);ctx.shadowColor='#123c3033';ctx.shadowBlur=8;ctx.shadowOffsetY=5;ctx.drawImage(item.sprite,-item.w/2,-item.h/2,item.w,item.h);ctx.restore();}
+   for(const item of game.items){if(game.phase==='sorting'&&item===game.held)continue;ctx.save();ctx.translate(item.x,item.y);ctx.rotate(item.angle);ctx.shadowColor='#123c3033';ctx.shadowBlur=8;ctx.shadowOffsetY=5;ctx.drawImage(item.sprite,-item.w/2-(item.offset?.x||0),-item.h/2-(item.offset?.y||0),item.w,item.h);ctx.restore();}
    ctx.strokeStyle='#426455';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(game.x,30);ctx.lineTo(game.x,game.y);ctx.stroke();ctx.fillStyle='#175b45';ctx.fillRect(game.x-18,game.y-6,36,17);
    const spread=game.held?14:30;ctx.strokeStyle='#175b45';ctx.lineWidth=7;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(game.x-12,game.y+8);ctx.lineTo(game.x-spread,game.y+28);ctx.lineTo(game.x-9,game.y+42);ctx.moveTo(game.x+12,game.y+8);ctx.lineTo(game.x+spread,game.y+28);ctx.lineTo(game.x+9,game.y+42);ctx.stroke();
    ctx.fillStyle='#175b45';ctx.fillRect(0,475,800,45);ctx.fillStyle='#dff49c';ctx.font='18px sans-serif';ctx.fillText('RE:CATCH',30,504);ctx.font='12px sans-serif';ctx.fillText('← → 移动 / 空格抓取',610,503);
@@ -138,6 +135,37 @@
   if(!el('claw-game').hidden)drawSorter(time);
   requestAnimationFrame(draw);
  }
+  const shell=el('machine-shell');let dragging=null,shakePulse=null,motionHandler=null,motionTimer=null,motionSeen=false,baseline=null;
+ function stopDrag(){dragging=null;shell.style.transform='';shell.classList.remove('shaking');}
+ for(const surface of [gc,el('shake-handle')]){
+  surface.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();surface.setPointerCapture(e.pointerId);dragging={id:e.pointerId,x:e.clientX,y:e.clientY};shell.classList.add('shaking');gc.focus({preventScroll:true});});
+  surface.addEventListener('pointermove',e=>{if(!dragging||e.pointerId!==dragging.id)return;const dx=e.clientX-dragging.x,dy=e.clientY-dragging.y;dragging.x=e.clientX;dragging.y=e.clientY;physics.shake(-dx*.22,-dy*.22);shell.style.transform=`translate(${Math.max(-12,Math.min(12,dx*.5))}px,${Math.max(-6,Math.min(6,dy*.3))}px) rotate(${Math.max(-1,Math.min(1,dx*.04))}deg)`;});
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])surface.addEventListener(event,stopDrag);
+ }
+ function shakeMachine(){if(el('claw-game').hidden)return;clearInterval(shakePulse);let n=0;physics.shake(18,-10);shakePulse=setInterval(()=>{if(el('claw-game').hidden||document.hidden||++n>6){clearInterval(shakePulse);stopDrag();return;}const s=n%2?1:-1;physics.shake(s*16,-6);shell.style.transform=`translate(${s*6}px,0) rotate(${s*.6}deg)`;},130);}
+ el('shake-machine').onclick=shakeMachine;el('shake-handle').addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();shakeMachine();}});
+ function disableMotion(note){if(motionHandler)window.removeEventListener('devicemotion',motionHandler);motionHandler=null;clearTimeout(motionTimer);motionSeen=false;baseline=null;el('motion-enable').textContent='启用设备晃动感应';if(note)el('motion-status').textContent=note;}
+ el('motion-enable').onclick=async()=>{
+  if(motionHandler){disableMotion('设备感应已关闭，仍可拖动机器晃动。');return;}
+  if(!window.isSecureContext||!window.DeviceMotionEvent){el('motion-status').textContent='当前浏览器不支持设备感应，请用鼠标拖动或“摇一摇”。';return;}
+  el('motion-enable').disabled=true;
+  try{if(typeof DeviceMotionEvent.requestPermission==='function'&&await DeviceMotionEvent.requestPermission()!=='granted'){el('motion-status').textContent='未获得运动感应权限，仍可用鼠标或手指拖动机器。';return;}}
+  catch(e){el('motion-status').textContent='无法启用设备感应，请用鼠标拖动机器。';return;}
+  finally{el('motion-enable').disabled=false;}
+  motionSeen=false;baseline=null;
+  motionHandler=e=>{
+   if(document.hidden||el('claw-game').hidden)return;
+   let a=e.acceleration,ax=a?.x,ay=a?.y;
+   if(!Number.isFinite(ax)||!Number.isFinite(ay)){a=e.accelerationIncludingGravity;if(!Number.isFinite(a?.x)||!Number.isFinite(a?.y))return;if(!baseline)baseline={x:a.x,y:a.y};baseline.x=baseline.x*.96+a.x*.04;baseline.y=baseline.y*.96+a.y*.04;ax=a.x-baseline.x;ay=a.y-baseline.y;}
+   if(!motionSeen){motionSeen=true;clearTimeout(motionTimer);el('motion-status').textContent='设备晃动感应已连接，可关闭后改用拖动。';}
+   const angle=(screen.orientation?.angle||0)*Math.PI/180,x=ax*Math.cos(angle)-ay*Math.sin(angle),y=ax*Math.sin(angle)+ay*Math.cos(angle);if(Math.hypot(x,y)>.25)physics.shake(-x*.7,y*.7);
+  };
+  window.addEventListener('devicemotion',motionHandler);el('motion-enable').textContent='关闭设备晃动感应';el('motion-status').textContent='正在等待设备运动数据…';motionTimer=setTimeout(()=>{if(!motionSeen)disableMotion('没有收到运动传感器数据。这台设备请使用拖动或“摇一摇”。');},6000);
+ };
+ function pauseShaking(){stopDrag();clearInterval(shakePulse);physics.shock={x:0,y:0};}
+ window.addEventListener('blur',pauseShaking);document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseShaking();});window.addEventListener('pagehide',()=>{pauseShaking();disableMotion();});
+
+
  const binNames=['纸板','玻璃','金属','纸张','塑料','其他','待确认'];
  const binColors=['#ad7542','#4b9c89','#6383a7','#a7944d','#508cad','#74776f','#b27b41'];
  const sorter={flight:null,counts:Array(7).fill(0),flash:null};
